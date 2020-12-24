@@ -6,7 +6,7 @@ from pandas import Series, DataFrame
 # ================= #
 
 # Function to calculate growth
-def calc_growth(price_data, lag=0):
+def calc_growth(price_data):
     """Uses first and last entry in yfinance data frame to 
     calculate period growth."""
     
@@ -21,37 +21,67 @@ def to_ymd(date_time):
     return pd.to_datetime(str_d).strftime('%Y-%m-%d')
 
 
-def get_90_day_prices(tickers):
+def get_90_day_prices(tickers, lag_days=0):
     """
     Retrieves previous 90 day stock prices for given stock tickers
     along wiht a 1-month lagged 90 day stock price.
     """
-    # Get current period
-    current_pd = yf.download(tickers, period='3mo')
+    today = datetime.date.today()
     
-    # Calculate lagged period start and end dates
-    today = current_pd.index.values[-1]
-    start, end = map(to_ymd, [today - np.timedelta64(days, 'D') for days in [120, 30]])
-    priod_pd = yf.download(tickers, start=start, end=end)
+    # Get current period
+    end = np.datetime64(today) - np.timedelta64(lag_days, 'D')
+    start = end - np.timedelta64(90, 'D')
+    current_pd = yf.download(tickers, start=to_ymd(start), end=to_ymd(end))
+    
+    # Get previous period
+    end = end - np.timedelta64(30, 'D')
+    start = end - np.timedelta64(90, 'D')
+    prior_pd = yf.download(tickers, start=to_ymd(start), end=to_ymd(end))
     
     return current_pd, prior_pd
 
 
-# ================= #
-# Rotation analysis #
-# ================= #
+def calc_winner(current, prior):
+    """
+    Takes previous 90 day prices and 1-month lagged 90 day prices and
+    returns which index won during that period based on the daily winner.
+    Also returns entropy as a measure of certainity.
+    """
+    
+    # Match 90 day windows from each period
+    mask = (current.index.values > prior.index.values[-1])
+    end = current.loc[mask]['Adj Close']
+    start = prior.iloc[0:sum(mask), ]['Adj Close']
+    
+    # Calculate growth
+    change = np.subtract(end, start)
+    growth = np.true_divide(change, start)
+    
+    # Get winner
+    win_idx = np.array(growth).argmax(axis=1)
+    counts = pd.Series(growth.columns[win_idx]).value_counts(normalize=True)
+    winner = counts.index.values[counts.argmax()]
+    win_pct = counts.round(decimals=3).max() * 100
+    
+    return winner, win_pct
 
 
-# Get current 3 month period and prior 3 month period
-tickers = 'QQQ TLT'
-current, prior = get_90_day_prices(tickers)
+# ============== #
+# Rotation check #
+# ============== #
 
-# Calculate growth
-current_g, prior_g = map(calc_growth, [current, prior])
 
-# Extract current and prior winners and compare
-current_win = current_g.index.values[current_g.argmax()]
-prior_win = prior_g.index.values[prior_g.argmax()]
+# Retrieve prices for current 90 day period and prior 90 day period
+tickers = 'QQQX TLT'
+winners = []
+for days in [0, 30]:
+    current, prior = get_90_day_prices(tickers=tickers, lag_days=days)
+    winner = calc_winner(current=current, prior=prior)
+    winners.append(winner)
+
+current_win, _ = winners[0]
+prior_win, _ = winners[1]
+
 send_alert = (current_win != prior_win)
 
 # Send email notification of need to rebalance
@@ -59,9 +89,9 @@ if send_alert:
     # TODO write function that sends out email message via smtp   
 
 
-#
-# All history analysis
-#
+# ==================== #
+# All history analysis #
+# ==================== #
 
 tickers = 'QQQX TLT'
 all_history = yf.download(tickers, period='max')
