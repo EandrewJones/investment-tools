@@ -8,6 +8,7 @@ load_dotenv()
 # ============== #
 
 # Retrieve prices for current 90 day period and prior 90 day period
+# TODO refactor to make these cmd line arguments
 tickers = 'QQQX TLT'
 winners = []
 for days in [0, 30]:
