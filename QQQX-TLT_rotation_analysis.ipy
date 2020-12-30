@@ -1,4 +1,7 @@
+#%%
 from utils import *
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # ==================== #
 # All history analysis #
@@ -62,8 +65,56 @@ monthly_counts_wide['lag'] = monthly_counts_wide['winner'].shift()
 monthly_counts_wide.dropna(inplace=True)
 monthly_counts_wide['rotate'] = (monthly_counts_wide['winner'] != monthly_counts_wide['lag'])
 
+#%%
 # 1. number of adjustments per year
-monthly_counts_wide.groupby(pd.Grouper(freq='Y')).rotate.sum()
+adj_year_df = monthly_counts_wide.groupby(pd.Grouper(freq='Y')).rotate.sum().to_frame()
+adj_year_df.reset_index(inplace=True)
+adj_year_df.columns = ['Date', 'Adjustments']
+adj_year_df['Year'] = pd.DatetimeIndex(adj_year_df['Date']).year
 
-# 2. Total number of periods invested in each
+adj_year_count = sns.barplot(
+    x='Year', 
+    y='Adjustments',
+    data=adj_year_df,
+    color='tab:blue'
+    )
+adj_year_count.set_xticklabels(adj_year_count.get_xticklabels(), rotation=45)
+adj_year_count.set_title('Number of Rotations Per Year [Taxable Events]')
+plt.show()
+
+#%%
+# 2. Monthly Average of 90-Day Growth Rates
+avg_growth_df = growth_rate_df.groupby(pd.Grouper(freq='M'))[['QQQX', 'TLT']].mean()
+long_df = avg_growth_df.stack().to_frame()
+long_df.reset_index(level=[0,1], inplace=True)
+long_df.columns = ['Date', 'Ticker', 'Growth Rate (%)']
+avg_growth_plot = sns.lineplot(
+    data=long_df,
+    x="Date",
+    y="Growth Rate (%)",
+    hue='Ticker'
+)
+avg_growth_plot.set_title('Monthly Average of 90-Day Growth Rates')
+ax1 = avg_growth_plot.axes
+ax1.axhline(0, ls='--', color='black', alpha=0.5)
+plt.show()
+
+#%%
+# 3. Focus in on corrections
+long_df['Year'] = pd.DatetimeIndex(long_df['Date']).year
+avg_growth_2008 = long_df[(long_df['Date'] > '2007-01-01') & (long_df['Date'] <= '2008-08-31')]
+plot_2008 = sns.lineplot(
+    data=avg_growth_2008,
+    x="Date",
+    y="Growth Rate (%)",
+    hue='Ticker'
+)
+plot_2008.set_title('2007-08 Financial Crisis')
+ax1 = plot_2008.axes
+ax1.axhline(0, ls='--', color='black', alpha=0.5)
+plt.show()
+
+#%%
+# 3. Total number of periods invested in each
+# TODO make table
 monthly_counts_wide.winner.value_counts()
