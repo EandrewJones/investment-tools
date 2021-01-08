@@ -2,6 +2,7 @@
 from utils import *
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 # ==================== #
 # All history analysis #
@@ -80,7 +81,14 @@ adj_year_count = sns.barplot(
     )
 adj_year_count.set_xticklabels(adj_year_count.get_xticklabels(), rotation=45)
 adj_year_count.set_title('Number of Rotations Per Year [Taxable Events]')
+
+plt.savefig('figures/adj_year_count.png', dpi=300)
 plt.show()
+
+#%%
+# Average number of adjustments per year
+avg_n_adj = round(adj_year_df.Adjustments.mean(), 1)
+print('There are {} adjustments on average per year.'.format(avg_n_adj))
 
 #%%
 # 2. Monthly Average of 90-Day Growth Rates
@@ -97,24 +105,69 @@ avg_growth_plot = sns.lineplot(
 avg_growth_plot.set_title('Monthly Average of 90-Day Growth Rates')
 ax1 = avg_growth_plot.axes
 ax1.axhline(0, ls='--', color='black', alpha=0.5)
+
+plt.savefig('figures/avg_growth_plot.png', dpi=300)
 plt.show()
 
 #%%
 # 3. Focus in on corrections
+# add years
 long_df['Year'] = pd.DatetimeIndex(long_df['Date']).year
-avg_growth_2008 = long_df[(long_df['Date'] > '2007-01-01') & (long_df['Date'] <= '2008-08-31')]
-plot_2008 = sns.lineplot(
-    data=avg_growth_2008,
-    x="Date",
-    y="Growth Rate (%)",
-    hue='Ticker'
-)
-plot_2008.set_title('2007-08 Financial Crisis')
-ax1 = plot_2008.axes
-ax1.axhline(0, ls='--', color='black', alpha=0.5)
-plt.show()
+
+# add correction periods
+conditions = [
+    (long_df['Date'] > '2007-01-01') & (long_df['Date'] <= '2009-08-31'),
+    (long_df['Date'] > '2011-01-01') & (long_df['Date'] <= '2012-01-01'),
+    (long_df['Date'] > '2015-07-01') & (long_df['Date'] <= '2016-01-01'),
+    (long_df['Date'] > '2020-01-01') & (long_df['Date'] <= '2020-12-01')
+]
+choices = ['2007-08 Financial Crisis', 'August 2011 Shock',
+           '2015-2016 Sell Off', 'Covid-19 Pandemic']
+start_date = ['2007-10-10', '2011-08-15', '2015-08-18', '2020-02-20']
+long_df['Correction'] = np.select(conditions, choices, default=pd.NA) 
+correction_df = long_df.dropna(subset=['Correction'])
+
+#%%
+# custom plotting function
+def plot_correction(x, y, **kwargs):
+    sns.lineplot(x=x, y=y)
+    plt.xticks(rotation=35)
+    
+    
+hue_order = correction_df.Ticker.unique()
+
+# Setup facet grid and plot
+g = sns.FacetGrid(correction_df, 
+                  col='Correction', 
+                  hue='Ticker', 
+                  hue_order=hue_order,
+                  col_wrap=2,
+                  height=4, 
+                  sharex=False)
+g.map(plot_correction, 'Date', 'Growth Rate (%)')
+
+# Add horizontal/vertical lines
+for ax, st in zip(g.axes.flat, start_date):
+    ax.axhline(0, ls='--', color='black', alpha=0.5)
+    ax.axvline(pd.Timestamp(st), ls='-', color='red', alpha=0.5)
+
+# Remove column name from facet title
+g.set_titles('{col_name}')
+
+# Fix legend
+colors = sns.color_palette().as_hex()[:len(hue_order)]
+handles = [patches.Patch(color=col, label=lab) for col, lab in zip(colors, hue_order)]
+plt.legend(handles=handles, title = 'Ticker', loc='center left', bbox_to_anchor = (1, 1))
+
+# Add padding
+plt.subplots_adjust(hspace=0.4, wspace=0.4, top=0.9)
+
+# Add title
+g.fig.suptitle('90-Day Growth Rates during Market Corrections')
+
+# save
+plt.savefig('figures/market_corrections.png', bbox_inches='tight')
 
 #%%
 # 3. Total number of periods invested in each
-# TODO make table
 monthly_counts_wide.winner.value_counts()
