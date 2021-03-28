@@ -1,7 +1,7 @@
 #!bin/bash
 
 # This crontab utility runs the monthly python rotation analysis script.
-cd /data/project_repos/investment-tools
+cd /data/project_repos/investment-tools/tools
 source activate invest
 
 # Run script

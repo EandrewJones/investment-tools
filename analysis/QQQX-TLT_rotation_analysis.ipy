@@ -4,6 +4,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+# TODO fix new directory structure
+
 # ==================== #
 # All history analysis #
 # ==================== #
